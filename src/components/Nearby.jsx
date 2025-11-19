@@ -7,27 +7,57 @@ export default function Nearby() {
   const [center, setCenter] = useState({ lat: '', lon: '' })
   const [query, setQuery] = useState('')
   const [teams, setTeams] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [geoBusy, setGeoBusy] = useState(false)
+  const [geoError, setGeoError] = useState('')
 
   const getMyLocation = () => {
-    if (!navigator.geolocation) return
+    setGeoError('')
+    if (!('geolocation' in navigator)) {
+      setGeoError('Location is not supported on this device/browser.')
+      return
+    }
+    if (window.isSecureContext === false) {
+      setGeoError('Location requires HTTPS. Please open the secure link and try again.')
+      return
+    }
+    setGeoBusy(true)
     navigator.geolocation.getCurrentPosition((pos) => {
       setCenter({ lat: pos.coords.latitude.toFixed(6), lon: pos.coords.longitude.toFixed(6) })
-    })
+      setGeoBusy(false)
+    }, (err) => {
+      setGeoBusy(false)
+      if (err.code === 1) setGeoError('Permission denied. Please allow location access and try again.')
+      else if (err.code === 2) setGeoError('Location position unavailable. Try again later.')
+      else setGeoError('Could not get your location. Please try again.')
+    }, { enableHighAccuracy: true, timeout: 10000 })
   }
 
   // Simple client-side location search: matches team.location_name
   const search = async () => {
-    const url = new URL(`${baseUrl}/nearby`)
-    if (sport) url.searchParams.set('sport', sport)
-    if (center.lat && center.lon) {
-      url.searchParams.set('center_lat', center.lat)
-      url.searchParams.set('center_lon', center.lon)
+    setLoading(true)
+    setError('')
+    try {
+      const url = new URL(`${baseUrl}/nearby`)
+      if (sport) url.searchParams.set('sport', sport)
+      if (center.lat && center.lon) {
+        url.searchParams.set('center_lat', center.lat)
+        url.searchParams.set('center_lon', center.lon)
+      }
+      url.searchParams.set('range_km', rangeKm)
+      const res = await fetch(url)
+      let data
+      try { data = await res.json() } catch { data = [] }
+      if (!res.ok) throw new Error(data.detail || 'Cannot reach server. Please try again later.')
+      const filtered = query ? data.filter((t) => (t.location_name || '').toLowerCase().includes(query.toLowerCase())) : data
+      setTeams(filtered)
+    } catch (e) {
+      setError(e.message || 'Something went wrong. Please try again.')
+      setTeams([])
+    } finally {
+      setLoading(false)
     }
-    url.searchParams.set('range_km', rangeKm)
-    const res = await fetch(url)
-    const data = await res.json()
-    const filtered = query ? data.filter((t) => (t.location_name || '').toLowerCase().includes(query.toLowerCase())) : data
-    setTeams(filtered)
   }
 
   useEffect(() => { search() }, [])
@@ -52,13 +82,17 @@ export default function Nearby() {
           <input className="w-full border rounded-lg p-3" placeholder="Search location (area, place)" value={query} onChange={(e) => setQuery(e.target.value)} />
 
           <div className="flex gap-2">
-            <button onClick={getMyLocation} className="flex-1 py-3 rounded-lg border">Use my location</button>
+            <button onClick={getMyLocation} disabled={geoBusy} className="flex-1 py-3 rounded-lg border disabled:opacity-60">{geoBusy ? 'Getting location…' : 'Use my location'}</button>
             <button onClick={search} className="flex-1 py-3 rounded-lg bg-emerald-600 text-white">Search</button>
           </div>
+          {geoError && <div className="text-sm text-red-600">{geoError}</div>}
         </div>
 
+        {error && <div className="mt-4 p-3 text-red-700 bg-red-50 rounded-lg text-sm">{error}</div>}
+
         <div className="mt-4 space-y-3">
-          {teams.map(t => (
+          {loading && <div className="text-center text-slate-500 py-6">Loading…</div>}
+          {!loading && teams.map(t => (
             <div key={t.id} className="p-3 rounded-xl border">
               <div className="font-semibold">{t.team_name} <span className="text-xs text-slate-500">{t.team_id}</span></div>
               <div className="text-sm text-slate-600">{t.sport} • {t.players?.length || 0} players • {t.location_name || 'Unknown'}</div>
@@ -69,7 +103,7 @@ export default function Nearby() {
               </div>
             </div>
           ))}
-          {teams.length===0 && <div className="text-center text-slate-500 py-10">No teams found.</div>}
+          {!loading && teams.length===0 && !error && <div className="text-center text-slate-500 py-10">No teams found.</div>}
         </div>
 
         <div className="mt-6 text-center">

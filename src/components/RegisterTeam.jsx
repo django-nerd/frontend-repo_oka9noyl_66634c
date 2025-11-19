@@ -27,6 +27,8 @@ export default function RegisterTeam() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [geoBusy, setGeoBusy] = useState(false)
+  const [geoError, setGeoError] = useState('')
 
   const updateField = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -54,11 +56,27 @@ export default function RegisterTeam() {
   }
 
   const useLocation = () => {
-    if (!navigator.geolocation) return
+    setGeoError('')
+    if (!('geolocation' in navigator)) {
+      setGeoError('Location is not supported on this device/browser.')
+      return
+    }
+    // Some browsers block geolocation on insecure contexts
+    if (window.isSecureContext === false) {
+      setGeoError('Location requires HTTPS. Please open the secure link and try again.')
+      return
+    }
+    setGeoBusy(true)
     navigator.geolocation.getCurrentPosition((pos) => {
       updateField('latitude', pos.coords.latitude.toFixed(6))
       updateField('longitude', pos.coords.longitude.toFixed(6))
-    })
+      setGeoBusy(false)
+    }, (err) => {
+      setGeoBusy(false)
+      if (err.code === 1) setGeoError('Permission denied. Please allow location access and try again.')
+      else if (err.code === 2) setGeoError('Location position unavailable. Try again later.')
+      else setGeoError('Could not get your location. Please try again.')
+    }, { enableHighAccuracy: true, timeout: 10000 })
   }
 
   const submit = async (e) => {
@@ -83,11 +101,12 @@ export default function RegisterTeam() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Failed to register')
+      let data
+      try { data = await res.json() } catch { data = {} }
+      if (!res.ok) throw new Error(data.detail || 'Cannot reach server. Please try again later.')
       setResult(data)
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -131,7 +150,11 @@ export default function RegisterTeam() {
           <div>
             <label className="block text-sm font-medium mb-1">Location</label>
             <input className="w-full border rounded-lg p-3 mb-2" placeholder="Area name" value={form.location_name} onChange={e => updateField('location_name', e.target.value)} />
-            <button type="button" onClick={useLocation} className="mt-1 w-full py-2 rounded-lg border">Use my location</button>
+            <button type="button" onClick={useLocation} disabled={geoBusy} className="mt-1 w-full py-2 rounded-lg border disabled:opacity-60">{geoBusy ? 'Getting location…' : 'Use my location'}</button>
+            {geoError && <div className="mt-2 text-sm text-red-600">{geoError}</div>}
+            {(form.latitude && form.longitude) && (
+              <div className="mt-2 text-xs text-slate-500">Lat {form.latitude}, Lon {form.longitude}</div>
+            )}
           </div>
 
           <div>
