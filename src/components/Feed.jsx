@@ -4,15 +4,31 @@ export default function Feed() {
   const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
   const [items, setItems] = useState([])
   const [sport, setSport] = useState('')
+  const [timePref, setTimePref] = useState('')
+  const [numMin, setNumMin] = useState('')
+  const [numMax, setNumMax] = useState('')
+  const [note, setNote] = useState('')
 
-  useEffect(() => { fetchFeed() }, [sport])
+  useEffect(() => { fetchFeed() }, [])
 
   const fetchFeed = async () => {
     const url = new URL(`${baseUrl}/feed`)
     if (sport) url.searchParams.set('sport', sport)
+    if (timePref) url.searchParams.set('time_pref', timePref)
+    if (numMin) url.searchParams.set('num_players_min', numMin)
+    if (numMax) url.searchParams.set('num_players_max', numMax)
+    if (note) url.searchParams.set('note_contains', note)
     const res = await fetch(url)
     const data = await res.json()
     setItems(data)
+  }
+
+  const resetFilters = () => {
+    setSport('')
+    setTimePref('')
+    setNumMin('')
+    setNumMax('')
+    setNote('')
   }
 
   return (
@@ -22,10 +38,30 @@ export default function Feed() {
           <h2 className="text-2xl font-bold">Match Feed</h2>
         </header>
 
-        <div className="flex gap-2 overflow-auto pb-2">
-          {['','cricket','football','kabaddi','shuttle','tennis'].map(s => (
-            <button key={s || 'all'} onClick={() => setSport(s)} className={`px-3 py-2 rounded-full border whitespace-nowrap ${sport===s ? 'bg-slate-800 text-white' : ''}`}>{s || 'all'}</button>
-          ))}
+        <div className="space-y-3">
+          <div className="flex gap-2 overflow-auto pb-2">
+            {['','cricket','football','kabaddi','shuttle','tennis'].map(s => (
+              <button key={s || 'all'} onClick={() => setSport(s)} className={`px-3 py-2 rounded-full border whitespace-nowrap ${sport===s ? 'bg-slate-800 text-white' : ''}`}>{s || 'all'}</button>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            {['','morning','afternoon','evening'].map(t => (
+              <button key={t || 'any'} onClick={() => setTimePref(t)} className={`flex-1 py-2 rounded-lg border ${timePref===t ? 'bg-slate-800 text-white' : ''}`}>{t || 'any time'}</button>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <input className="w-1/2 border rounded-lg p-3" inputMode="numeric" placeholder="Min players" value={numMin} onChange={(e) => setNumMin(e.target.value)} />
+            <input className="w-1/2 border rounded-lg p-3" inputMode="numeric" placeholder="Max players" value={numMax} onChange={(e) => setNumMax(e.target.value)} />
+          </div>
+
+          <input className="w-full border rounded-lg p-3" placeholder="Search note (keywords)" value={note} onChange={(e) => setNote(e.target.value)} />
+
+          <div className="flex gap-2">
+            <button onClick={resetFilters} className="flex-1 py-3 rounded-lg border">Reset</button>
+            <button onClick={fetchFeed} className="flex-1 py-3 rounded-lg bg-emerald-600 text-white">Apply</button>
+          </div>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -34,6 +70,7 @@ export default function Feed() {
               <div className="flex justify-between text-sm text-slate-500"><span>{it.sport}</span><span>{it.time_pref}</span></div>
               <div className="text-lg font-semibold mt-1">{it.num_players} players</div>
               <div className="text-sm text-slate-600">{it.location_name || 'Unknown location'}</div>
+              {it.note && <div className="text-sm text-slate-500 mt-1">“{it.note}”</div>}
               <div className="flex gap-2 mt-3">
                 <a className="flex-1 py-2 rounded-lg bg-slate-800 text-white text-center" href={`/chat/${it.team_id}`}>Message</a>
                 <a className="flex-1 py-2 rounded-lg border text-center" href={`/team/${it.team_id}`}>Call</a>

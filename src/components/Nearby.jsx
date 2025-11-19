@@ -5,6 +5,7 @@ export default function Nearby() {
   const [sport, setSport] = useState('')
   const [rangeKm, setRangeKm] = useState(10)
   const [center, setCenter] = useState({ lat: '', lon: '' })
+  const [query, setQuery] = useState('')
   const [teams, setTeams] = useState([])
 
   const getMyLocation = () => {
@@ -14,6 +15,7 @@ export default function Nearby() {
     })
   }
 
+  // Simple client-side location search: matches team.location_name
   const search = async () => {
     const url = new URL(`${baseUrl}/nearby`)
     if (sport) url.searchParams.set('sport', sport)
@@ -24,7 +26,8 @@ export default function Nearby() {
     url.searchParams.set('range_km', rangeKm)
     const res = await fetch(url)
     const data = await res.json()
-    setTeams(data)
+    const filtered = query ? data.filter((t) => (t.location_name || '').toLowerCase().includes(query.toLowerCase())) : data
+    setTeams(filtered)
   }
 
   useEffect(() => { search() }, [])
@@ -45,10 +48,9 @@ export default function Nearby() {
               {[5,10,20,50].map(v => <option key={v} value={v}>{v} km</option>)}
             </select>
           </div>
-          <div className="flex gap-2">
-            <input className="flex-1 border rounded-lg p-3" placeholder="Lat" value={center.lat} onChange={e => setCenter({ ...center, lat: e.target.value })} />
-            <input className="flex-1 border rounded-lg p-3" placeholder="Lon" value={center.lon} onChange={e => setCenter({ ...center, lon: e.target.value })} />
-          </div>
+
+          <input className="w-full border rounded-lg p-3" placeholder="Search location (area, place)" value={query} onChange={(e) => setQuery(e.target.value)} />
+
           <div className="flex gap-2">
             <button onClick={getMyLocation} className="flex-1 py-3 rounded-lg border">Use my location</button>
             <button onClick={search} className="flex-1 py-3 rounded-lg bg-emerald-600 text-white">Search</button>

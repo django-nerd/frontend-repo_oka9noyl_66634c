@@ -17,9 +17,10 @@ export default function RegisterTeam() {
     sport: 'cricket',
     players: [''],
     location_name: '',
+    // coords kept internally (hidden) to support "Use my location"
     latitude: '',
     longitude: '',
-    contact_preference: 'call',
+    contact_methods: ['call', 'text'],
     contact_number: '',
     availability: [],
   })
@@ -44,6 +45,14 @@ export default function RegisterTeam() {
     updateField('availability', Array.from(set))
   }
 
+  const toggleContact = (method) => {
+    const set = new Set(form.contact_methods)
+    set.has(method) ? set.delete(method) : set.add(method)
+    const next = Array.from(set)
+    // Ensure at least one method is selected
+    updateField('contact_methods', next.length ? next : ['call'])
+  }
+
   const useLocation = () => {
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition((pos) => {
@@ -59,10 +68,15 @@ export default function RegisterTeam() {
     setResult(null)
     try {
       const payload = {
-        ...form,
+        team_name: form.team_name,
+        sport: form.sport,
         players: form.players.filter(p => p.trim() !== ''),
+        location_name: form.location_name || null,
         latitude: form.latitude ? Number(form.latitude) : null,
         longitude: form.longitude ? Number(form.longitude) : null,
+        contact_methods: form.contact_methods,
+        contact_number: form.contact_number,
+        availability: form.availability,
       }
       const res = await fetch(`${baseUrl}/teams`, {
         method: 'POST',
@@ -117,23 +131,20 @@ export default function RegisterTeam() {
           <div>
             <label className="block text-sm font-medium mb-1">Location</label>
             <input className="w-full border rounded-lg p-3 mb-2" placeholder="Area name" value={form.location_name} onChange={e => updateField('location_name', e.target.value)} />
-            <div className="flex gap-2">
-              <input className="flex-1 border rounded-lg p-3" placeholder="Latitude" value={form.latitude} onChange={e => updateField('latitude', e.target.value)} />
-              <input className="flex-1 border rounded-lg p-3" placeholder="Longitude" value={form.longitude} onChange={e => updateField('longitude', e.target.value)} />
-            </div>
-            <button type="button" onClick={useLocation} className="mt-2 w-full py-2 rounded-lg border">Use my location</button>
+            <button type="button" onClick={useLocation} className="mt-1 w-full py-2 rounded-lg border">Use my location</button>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Contact preference</label>
-            <div className="flex gap-3">
+            <label className="block text-sm font-medium mb-1">Contact methods</label>
+            <div className="grid grid-cols-2 gap-2">
               {['call','text'].map(v => (
-                <label key={v} className={`flex-1 p-3 border rounded-lg text-center ${form.contact_preference===v ? 'bg-slate-100' : ''}`}>
-                  <input type="radio" name="cp" className="mr-2" checked={form.contact_preference===v} onChange={() => updateField('contact_preference', v)} />
-                  {v}
+                <label key={v} className={`flex items-center gap-2 p-3 border rounded-lg ${form.contact_methods.includes(v) ? 'bg-slate-100' : ''}`}>
+                  <input type="checkbox" checked={form.contact_methods.includes(v)} onChange={() => toggleContact(v)} />
+                  <span className="capitalize">{v}</span>
                 </label>
               ))}
             </div>
+            <p className="text-xs text-slate-500 mt-1">You can enable both options.</p>
           </div>
 
           <div>
