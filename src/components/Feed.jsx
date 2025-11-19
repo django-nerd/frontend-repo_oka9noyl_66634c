@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react'
 export default function Feed() {
   const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
   const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
   const [sport, setSport] = useState('')
   const [timePref, setTimePref] = useState('')
   const [numMin, setNumMin] = useState('')
@@ -12,15 +15,25 @@ export default function Feed() {
   useEffect(() => { fetchFeed() }, [])
 
   const fetchFeed = async () => {
-    const url = new URL(`${baseUrl}/feed`)
-    if (sport) url.searchParams.set('sport', sport)
-    if (timePref) url.searchParams.set('time_pref', timePref)
-    if (numMin) url.searchParams.set('num_players_min', numMin)
-    if (numMax) url.searchParams.set('num_players_max', numMax)
-    if (note) url.searchParams.set('note_contains', note)
-    const res = await fetch(url)
-    const data = await res.json()
-    setItems(data)
+    setLoading(true)
+    setError('')
+    try {
+      const url = new URL(`${baseUrl}/feed`)
+      if (sport) url.searchParams.set('sport', sport)
+      if (timePref) url.searchParams.set('time_pref', timePref)
+      if (numMin) url.searchParams.set('num_players_min', numMin)
+      if (numMax) url.searchParams.set('num_players_max', numMax)
+      if (note) url.searchParams.set('note_contains', note)
+      const res = await fetch(url)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to load feed')
+      setItems(data)
+    } catch (e) {
+      setError(e.message)
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const resetFilters = () => {
@@ -30,6 +43,9 @@ export default function Feed() {
     setNumMax('')
     setNote('')
   }
+
+  const canCall = (it) => (it.contact_methods || []).includes('call') && it.contact_number
+  const canText = (it) => (it.contact_methods || []).includes('text') && it.contact_number
 
   return (
     <div className="min-h-screen bg-white text-slate-800">
@@ -64,20 +80,26 @@ export default function Feed() {
           </div>
         </div>
 
+        {error && <div className="mt-4 p-3 text-red-700 bg-red-50 rounded-lg text-sm">{error}</div>}
+
         <div className="mt-4 space-y-3">
-          {items.map((it) => (
+          {loading && <div className="text-center text-slate-500 py-6">Loading…</div>}
+          {!loading && items.map((it) => (
             <div key={it.id} className="p-3 rounded-xl border">
-              <div className="flex justify-between text-sm text-slate-500"><span>{it.sport}</span><span>{it.time_pref}</span></div>
+              <div className="text-xs text-slate-500 flex justify-between"><span>{it.sport}</span><span>{it.time_pref}</span></div>
               <div className="text-lg font-semibold mt-1">{it.num_players} players</div>
               <div className="text-sm text-slate-600">{it.location_name || 'Unknown location'}</div>
+              <div className="text-sm text-slate-700 mt-1">Posted by: <span className="font-medium">{it.team_name || it.team_id}</span></div>
               {it.note && <div className="text-sm text-slate-500 mt-1">“{it.note}”</div>}
               <div className="flex gap-2 mt-3">
                 <a className="flex-1 py-2 rounded-lg bg-slate-800 text-white text-center" href={`/chat/${it.team_id}`}>Message</a>
-                <a className="flex-1 py-2 rounded-lg border text-center" href={`/team/${it.team_id}`}>Call</a>
+                {canCall(it) && <a className="flex-1 py-2 rounded-lg border text-center" href={`tel:${it.contact_number}`}>Call</a>}
+                {canText(it) && <a className="flex-1 py-2 rounded-lg border text-center" href={`sms:${it.contact_number}`}>Text</a>}
+                {!canCall(it) && !canText(it) && <a className="flex-1 py-2 rounded-lg border text-center" href={`/team/${it.team_id}`}>View team</a>}
               </div>
             </div>
           ))}
-          {items.length===0 && <div className="text-center text-slate-500 py-10">No posts yet.</div>}
+          {!loading && items.length===0 && !error && <div className="text-center text-slate-500 py-10">No posts yet.</div>}
         </div>
 
         <div className="mt-6 text-center">
